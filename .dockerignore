@@ -1,0 +1,31 @@
+# Version control
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# !!! IMPORTANT: Exclude the data folder so it doesn't bloat the image
+data/
+*.parquet
+*.jsonl
+
+# Output / results (we mount these as volumes)
+results/
+figures/
+*.json
+
+# Misc
+*.log
+*.tmp
+.DS_Store

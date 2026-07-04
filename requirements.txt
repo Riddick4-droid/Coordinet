@@ -1,0 +1,18 @@
+#Data Handling & Numerical Compute 
+numpy
+pandas
+pyarrow  # Required for reading .parquet files (embeddings)
+
+#Graph & Community Detection 
+networkx
+python-louvain  # Community detection (Louvain algorithm)
+
+#Machine Learning & Similarity
+scikit-learn
+
+#Visualization
+matplotlib
+seaborn
+
+#Utilities & Progress 
+tqdm  # For progress bars

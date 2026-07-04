@@ -1,0 +1,66 @@
+# AI Collaboration Log: CoordiNet (Modular & Dockerized Version)
+
+## Summary of Collaboration
+
+This log documents the full lifecycle of the CoordiNet project, from initial algorithmic research to a production-grade, Dockerized Python package. The collaboration followed a strict iterative pattern: the AI generated modular code structures (`src/`, `scripts/`), we manually inspected outputs (especially the `eval/` results), and then worked extensively to ensure the entire system ran flawlessly inside a Docker container on a Windows environment.
+
+The final submission is a fully decoupled system where the data is mounted as a volume, the code is stateless, and the pipeline outputs exactly 2 verified coordinated clusters.
+
+---
+
+## Section 1: Methodology Evolution (The Core Logic)
+
+The operational definition of "coordination" was solidified early: accounts that exhibit statistically improbable alignment across *Temporal Burstiness*, *Structural Overlap* (rare URLs/threads), and *Semantic Convergence* (cross-lingual embeddings).
+
+**The "Global Null Model" Fix:**
+The most critical algorithmic pivot happened during the notebook phase when we discovered that shuffling accounts *within* Louvain communities preserved structural density. The AI initially implemented an "in-cluster" shuffle. 
+We caught this when the 99.9th percentile null threshold jumped to 0.75, drowning out real signals. 
+**Correction:** We rewrote the null model to shuffle account IDs **globally** across the entire dataset. This dropped the noise ceiling to ~0.47 and revealed the two true positive clusters we validated manually.
+
+---
+
+## Section 2: Productionizing the Pipeline (The Shift to Modular)
+
+With the math proven, we pivoted to building a structured project suitable for a GitHub portfolio and the Docker submission. This meant moving from a single notebook to isolated, testable modules:
+
+1.  **`src/config.py`:** Centralized the hyperparameters (weights, percentile threshold).
+2.  **`src/data_loader.py`:** Encapsulated the computation of `profile_priors` (bot/burner suspicion scores).
+3.  **`src/sniffers.py`:** The 3 detection dogs (Structural, Entity, Semantic) and Louvain community detection.
+4.  **`src/scorer.py`:** The Gini coefficient, global null model, and scoring logic.
+5.  **`src/visualize.py`:** The 4-plot validation suite.
+6.  **`scripts/run.py`:** The single entry point orchestrating the flow and printing the "Manual Verification Report" to the terminal.
+
+The AI's code generation was smooth, but the critical moment was designing the `run.py` orchestrator to output the raw text of flagged clusters—this replaced the notebook's "eyeballing" with a systematic verification log.
+
+---
+
+## Section 3: Critical Debugging Moments (The Docker Gauntlet)
+
+This phase was the most challenging. The AI's code was correct, but the environment configuration required significant troubleshooting.
+
+### Moment 1: The Windows Docker API Failure (npipe)
+**The Problem:** When we ran `docker build`, we hit:
+`ERROR: failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`.
+**AI's Initial Guess:** Suggested checking if Docker Desktop was running and restarting the service.
+**The Reality:** The Windows named pipe was stuck. 
+**How We Caught It:** I realized `docker system prune -a` also failed immediately with the same error.
+**The Fix:** We fully reset Docker Desktop to factory defaults and restarted the WSL2 engine. This cleared the stale socket and allowed the build context to be sent.
+
+### Moment 2: The I/O Build Corruption (Blob Storage)
+**The Problem:** The build reached 98% completion (exporting layers) but crashed with:
+`ERROR: commit failed: input/output error`.
+**AI's Initial Guess:** (Hypothesized) This was a transient disk write error.
+**The Reality:** A blob in Docker's internal storage (`/var/lib/desktop-containerd`) had become corrupted, preventing the final image from being "unpacked". 
+**How We Caught It:** `docker system prune -a` failed with `expected blob... input/output error`.
+**The Fix:** We did a full "Reset to factory defaults" in Docker Desktop, which wiped the corrupted storage layer. The subsequent build (`docker build -t coordinet .`) succeeded perfectly on the first try.
+
+### Moment 3: The Python "ModuleNotFoundError" at Runtime
+**The Problem:** The moment of truth. The container ran the build, but executing the pipeline failed with:
+`ModuleNotFoundError: No module named 'src'`.
+**AI's Initial Guess:** The AI suggested setting `ENV PYTHONPATH=/app` in the Dockerfile.
+**The Reality:** While that would have worked, it was a "rigid" fix. The underlying issue was that when Python executes a script inside a subfolder (`scripts/run.py`), it doesn't automatically add the project root (`/app`) to `sys.path`.
+**The Fix (The Better Solution):** Instead of modifying the Dockerfile, we added a dynamic path resolver directly to the top of `scripts/run.py`:
+```python
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
